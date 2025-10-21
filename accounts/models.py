@@ -1,5 +1,8 @@
 from django.db import models
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, BaseUserManager
+from django.core.exceptions import ValidationError  
+from django.contrib.auth.hashers import make_password
+
 
 class CustomUser(AbstractUser):
 
@@ -13,6 +16,8 @@ class CustomUser(AbstractUser):
     
     def get_full_name(self):
         return f"{self.first_name} {self.last_name}"
+    
+    
 
 class Teacher(CustomUser):
     bio = models.TextField(null=True, blank=True)
