@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'accounts',
     'proctoring',
     'exams',
+    'subscribes',
     
 ]
 
