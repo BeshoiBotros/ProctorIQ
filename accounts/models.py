@@ -17,7 +17,7 @@ class CustomUser(AbstractUser):
 class Teacher(CustomUser):
     bio = models.TextField(null=True, blank=True)
     role = models.CharField(max_length=50, default='Teacher', editable=False)
-
+    subscribe = models.ForeignKey('subscribes.Subscribe', on_delete=models.SET_NULL, null=True, blank=True)
     class Meta:
         verbose_name = 'Teacher'
         verbose_name_plural = 'Teachers'
