@@ -24,6 +24,7 @@ celerybeat-schedule*
 
 # === Migrations (optional, keep if you want to version-control them) ===
 */migrations/__pycache__/
+*/__pycache__/
 */migrations/*.pyc
 # Uncomment next line to ignore migrations entirely
 # */migrations/
