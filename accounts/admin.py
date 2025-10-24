@@ -1,10 +1,29 @@
 from django.contrib import admin
-from .models import CustomUser, Teacher, Student
 from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.hashers import make_password
+from .models import CustomUser
 
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
-    pass
+    model = CustomUser
+    list_display = ('username', 'email', 'role', 'is_staff', 'is_active')
+    list_filter = ('role', 'is_staff', 'is_active')
+    fieldsets = (
+        (None, {'fields': ('username', 'email', 'password')}),
+        ('Personal Info', {'fields': ('bio', 'phone_number', 'address', 'date_of_birth', 'image', 'subscribe', 'created_by')}),
+        ('Permissions', {'fields': ('role', 'is_staff', 'is_active', 'is_superuser', 'groups', 'user_permissions')}),
+    )
+    add_fieldsets = (
+        (None, {
+            'classes': ('wide',),
+            'fields': ('username', 'email', 'role', 'password1', 'password2', 'is_staff', 'is_active')}
+        ),
+    )
+    search_fields = ('username', 'email')
+    ordering = ('username',)
 
-admin.site.register(Teacher)
-admin.site.register(Student)
+    def save_model(self, request, obj, form, change):
+        raw_pass = form.cleaned_data.get("password")
+        if raw_pass and not raw_pass.startswith("pbkdf2_"):
+            obj.password = make_password(raw_pass)
+        super().save_model(request, obj, form, change)
