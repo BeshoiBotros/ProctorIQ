@@ -14,7 +14,7 @@ class Exam(models.Model):
 
     def is_active(self):
         from django.utils import timezone
-        return self.date >= timezone.now().date()    
+        return self.start_time >= timezone.now().date()    
     
 
 class Question(models.Model):
