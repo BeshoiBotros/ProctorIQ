@@ -66,18 +66,18 @@ class TeacherSubscribeView(APIView):
         return Response({"detail": f"You have successfully subscribed to the {subscription.title} plan."}, status=status.HTTP_200_OK)
     
 
-def patch(self, request, pk):
-    
-    if not request.user.subscribe:
-        return Response({"detail": "You are not subscribed to a plan yet."}, status=status.HTTP_400_BAD_REQUEST)
+    def patch(self, request, pk):
+        
+        if not request.user.subscribe:
+            return Response({"detail": "You are not subscribed to a plan yet."}, status=status.HTTP_400_BAD_REQUEST)
 
-    subscription = get_object_or_404(Subscribe, pk=pk)
+        subscription = get_object_or_404(Subscribe, pk=pk)
 
-    if request.user.subscribe.id == pk:
-        return Response({"detail": "You are already subscribed to this plan."}, status=status.HTTP_400_BAD_REQUEST)
+        if request.user.subscribe.id == pk:
+            return Response({"detail": "You are already subscribed to this plan."}, status=status.HTTP_400_BAD_REQUEST)
 
-    request.user.subscribe = subscription
-    request.user.save()
+        request.user.subscribe = subscription
+        request.user.save()
 
-    return Response({"detail": "Subscription updated successfully."}, status=status.HTTP_200_OK)
+        return Response({"detail": "Subscription updated successfully."}, status=status.HTTP_200_OK)
 

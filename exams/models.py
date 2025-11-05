@@ -12,9 +12,10 @@ class Exam(models.Model):
     def __str__(self):
         return self.title
 
-    def is_active(self):
+    def is_currently_active(self):
         from django.utils import timezone
-        return self.start_time >= timezone.now().date()    
+        return self.start_time <= timezone.now() <= self.end_time
+
     
 
 class Question(models.Model):
@@ -47,7 +48,8 @@ class ExamAttempt(models.Model):
     score = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
 
     def __str__(self):
-        return f"{self.student.user.username} - {self.exam.title}"
+        return f"{self.student.username} - {self.exam.title}"
+
     
 
 class StudentAnswer(models.Model):
