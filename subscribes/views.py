@@ -7,7 +7,6 @@ from ProctorIQ.utils import IsTeacher
 from .models import Subscribe
 from .serializers import SubscribeSerializer
 from django.shortcuts import get_object_or_404
-from .models import CustomUser
 from rest_framework.permissions import IsAdminUser
 
 class AdminSubscribeView(APIView):
