@@ -409,4 +409,91 @@ class ExamAttemptView(APIView):
 
         return Response({"detail": "You are not allowed to delete this attempt."}, status=status.HTTP_403_FORBIDDEN)
 
-        
+class StudentAnswerView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, attempt_id=None):
+
+        user = request.user
+
+        if not attempt_id:
+            return Response({"detail": "Attempt ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        attempt = get_object_or_404(ExamAttempt, id=attempt_id)
+  
+        if user.role == 'Teacher':
+            if attempt.exam.created_by != user:
+                return Response({"detail": "You can only view answers for your exams."}, status=status.HTTP_403_FORBIDDEN)
+            answers = StudentAnswer.objects.filter(attempt=attempt)
+            serializer = StudentAnswerSerializer(answers, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+        if user.role == 'Student':
+            if attempt.student != user:
+                return Response({"detail": "You can only view your own answers."}, status=status.HTTP_403_FORBIDDEN)
+            answers = StudentAnswer.objects.filter(attempt=attempt)
+            serializer = StudentAnswerSerializer(answers, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        return Response({"detail": "Unauthorized role."}, status=status.HTTP_403_FORBIDDEN)
+
+    def post(self, request, attempt_id=None):
+
+        user = request.user
+
+        if user.role != 'Student':
+            return Response({"detail": "Only students can submit answers."}, status=status.HTTP_403_FORBIDDEN)
+
+        if not attempt_id:
+            return Response({"detail": "Attempt ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        attempt = get_object_or_404(ExamAttempt, id=attempt_id, student=user)
+
+        question_id = request.data.get('question')
+        choice_id = request.data.get('selected_choice')
+        text_answer = request.data.get('text_answer', '')
+
+        if not question_id:
+            return Response({"detail": "Question ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        question = get_object_or_404(Question, id=question_id, exam=attempt.exam)
+
+        now = timezone.now()
+        if not (attempt.exam.start_time <= now <= attempt.exam.end_time):
+            return Response({"detail": "The exam is not currently active."}, status=status.HTTP_400_BAD_REQUEST)
+
+        selected_choice = None
+        if question.question_type in ['mcq', 'tf'] and choice_id:
+            selected_choice = get_object_or_404(Choice, id=choice_id, question=question)
+
+        answer, created = StudentAnswer.objects.update_or_create(
+            attempt=attempt,
+            question=question,
+            defaults={
+                'selected_choice': selected_choice,
+                'text_answer': text_answer
+            }
+        )
+
+        if selected_choice:
+            answer.is_correct = selected_choice.is_correct
+            answer.save()
+
+        serializer = StudentAnswerSerializer(answer)
+        message = "Answer submitted successfully." if created else "Answer updated successfully."
+        return Response({"detail": message, "data": serializer.data}, status=status.HTTP_200_OK)
+
+    def delete(self, request, pk):
+
+        user = request.user
+        answer = get_object_or_404(StudentAnswer, pk=pk)
+
+        if user.role == 'Teacher':
+            if answer.attempt.exam.created_by != user:
+                return Response({"detail": "You can only delete answers for your own exams."}, status=status.HTTP_403_FORBIDDEN)
+            answer.delete()
+            return Response({"detail": "Answer deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+
+        return Response({"detail": "Unauthorized."}, status=status.HTTP_403_FORBIDDEN)

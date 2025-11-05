@@ -17,4 +17,8 @@ urlpatterns = [
     # attempts
     path('attempts/', ExamAttemptView.as_view(), name='attempt-list'),
     path('attempts/<int:pk>/', ExamAttemptView.as_view(), name='attempt-detail'),
+
+    # Student Answer
+    path('attempts/<int:attempt_id>/answers/', StudentAnswerView.as_view(), name='answer-list'),
+    path('answers/<int:pk>/', StudentAnswerView.as_view(), name='answer-detail'),
 ]
