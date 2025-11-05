@@ -8,6 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
 from .models import *
 from .serializers import *
+from django.db.models import Avg, Max, Min, Count
 
 # Create your views here.
 
@@ -476,3 +477,50 @@ class StudentAnswerView(APIView):
             return Response({"detail": "Answer deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
 
         return Response({"detail": "Unauthorized."}, status=status.HTTP_403_FORBIDDEN)
+
+
+class ExamResultsView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, exam_id):
+        user = request.user
+
+        exam = get_object_or_404(Exam, id=exam_id)
+
+        if user.role != 'Teacher' or exam.created_by != user:
+            return Response({"detail": "You are not authorized to view results for this exam."},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        attempts = ExamAttempt.objects.filter(exam=exam).select_related('student')
+
+        if not attempts.exists():
+            return Response({"detail": "No students have attempted this exam yet."}, status=status.HTTP_200_OK)
+
+        total_attempts = attempts.count()
+        avg_score = attempts.aggregate(Avg('score'))['score__avg'] or 0
+        highest_score = attempts.aggregate(Max('score'))['score__max'] or 0
+        lowest_score = attempts.aggregate(Min('score'))['score__min'] or 0
+
+        student_results = [
+            {
+                "student_id": a.student.id,
+                "student_name": a.student.username,
+                "started_at": a.started_at,
+                "ended_at": a.ended_at,
+                "score": float(a.score) if a.score is not None else None
+            }
+            for a in attempts
+        ]
+
+        data = {
+            "exam_id": exam.id,
+            "exam_title": exam.title,
+            "total_attempts": total_attempts,
+            "average_score": round(float(avg_score), 2),
+            "highest_score": round(float(highest_score), 2),
+            "lowest_score": round(float(lowest_score), 2),
+            "students": student_results
+        }
+
+        return Response(data, status=status.HTTP_200_OK)

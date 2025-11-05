@@ -21,4 +21,8 @@ urlpatterns = [
     # Student Answer
     path('attempts/<int:attempt_id>/answers/', StudentAnswerView.as_view(), name='answer-list'),
     path('answers/<int:pk>/', StudentAnswerView.as_view(), name='answer-detail'),
+
+    # Exam Results
+    path('exams/<int:exam_id>/results/', ExamResultsView.as_view(), name='exam-results'),
+
 ]
