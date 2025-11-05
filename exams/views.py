@@ -8,6 +8,9 @@ from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated  # Ensure user is authenticated
 from ProctorIQ.utils import IsTeacher
 from django.utils import timezone
+from .models import *
+from .serializers import *
+from ProctorIQ.utils import IsTeacher, IsStudent
 
 # Create your views here.
 
@@ -109,11 +112,6 @@ class ExamView(APIView) :
         exam.delete()
         return Response({"detail": "Exam deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
 
-from .models import Exam, Question
-from .serializers import QuestionSerializer
-from ProctorIQ.utils import IsTeacher, IsStudent
-
-
 class QuestionView(APIView):
 
     permission_classes = [IsAuthenticated]
@@ -208,6 +206,98 @@ class QuestionView(APIView):
         question.delete()
         return Response({"detail": "Question deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
 
-    
+class ChoiceView(APIView):
 
-            
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk=None, question_id=None):
+        user = request.user
+
+
+        if user.is_staff:
+            if pk:
+                choice = get_object_or_404(Choice, pk=pk)
+                serializer = ChoiceSerializer(choice)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            choices = Choice.objects.all()
+            serializer = ChoiceSerializer(choices, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+        elif user.role == 'Teacher':
+            if question_id:
+                question = get_object_or_404(Question, id=question_id, exam__created_by=user)
+                choices = question.choices.all()
+                serializer = ChoiceSerializer(choices, many=True)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
+            if pk:
+                choice = get_object_or_404(Choice, pk=pk, question__exam__created_by=user)
+                serializer = ChoiceSerializer(choice)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
+            return Response({"detail": "Question ID is required to list choices."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+        elif user.role == 'Student':
+            if not question_id:
+                return Response({"detail": "Question ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+            question = Question.objects.filter(
+                id=question_id,
+                exam__attempts__student=user
+            ).first()
+
+            if not question:
+                return Response({"detail": "You are not allowed to view choices for this question."}, status=status.HTTP_403_FORBIDDEN)
+
+            choices = question.choices.all()
+            serializer = ChoiceSerializer(choices, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        return Response({"detail": "Unauthorized role."}, status=status.HTTP_403_FORBIDDEN)
+
+    def post(self, request, question_id=None):
+        user = request.user
+
+        if user.role != 'Teacher':
+            return Response({"detail": "Only teachers can create choices."}, status=status.HTTP_403_FORBIDDEN)
+
+        if not question_id:
+            return Response({"detail": "Question ID is required to create a choice."}, status=status.HTTP_400_BAD_REQUEST)
+
+        question = get_object_or_404(Question, id=question_id, exam__created_by=user)
+
+        data = request.data.copy()
+        data['question'] = question.id
+
+        serializer = ChoiceSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save(question=question)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def patch(self, request, pk):
+
+        user = request.user
+        choice = get_object_or_404(Choice, pk=pk)
+
+        if user.role == 'Teacher' and choice.question.exam.created_by != user:
+            return Response({"detail": "You can only update choices in your exams."}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = ChoiceSerializer(choice, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk):
+
+        user = request.user
+        choice = get_object_or_404(Choice, pk=pk)
+
+        if user.role == 'Teacher' and choice.question.exam.created_by != user:
+            return Response({"detail": "You can only delete choices in your exams."}, status=status.HTTP_403_FORBIDDEN)
+
+        choice.delete()
+        return Response({"detail": "Choice deleted successfully."}, status=status.HTTP_204_NO_CONTENT)    
