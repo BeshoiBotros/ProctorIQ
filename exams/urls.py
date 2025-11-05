@@ -1,3 +1,17 @@
+from django.urls import path
+from .views import *
+
 urlpatterns = [
-    
+    # exams
+    path('exams/', ExamView.as_view(), name='exam-list'),
+    path('exams/<int:pk>/', ExamView.as_view(), name='exam-detail'),
+
+    # questions
+    path('exams/<int:exam_id>/questions/', QuestionView.as_view(), name='question-list'),
+    path('questions/<int:pk>/', QuestionView.as_view(), name='question-detail'),
+
+    # Choices
+    path('questions/<int:question_id>/choices/', ChoiceView.as_view(), name='choice-list'),
+    path('choices/<int:pk>/', ChoiceView.as_view(), name='choice-detail'),
+
 ]
