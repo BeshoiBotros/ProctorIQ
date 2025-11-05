@@ -59,11 +59,9 @@ class StudentAnswer(models.Model):
     text_answer = models.TextField(blank=True, null=True)
     is_correct = models.BooleanField(default=False)
 
-    def save(self, *args, **kwargs):
-        if self.question.question_type == 'mcq' and self.selected_choice:
-            self.is_correct = self.selected_choice.is_correct
-        super().save(*args, **kwargs)
-        if self.question.question_type == 'tf' and self.selected_choice:
-            self.is_correct = self.selected_choice.is_correct
-        super().save(*args, **kwargs)
+def save(self, *args, **kwargs):
+    if self.selected_choice:
+        self.is_correct = self.selected_choice.is_correct
+    super().save(*args, **kwargs)
+
 

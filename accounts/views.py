@@ -126,23 +126,43 @@ class StudentView(APIView):
 class StudentViewForTeacher(APIView):
     permission_classes = [IsTeacher]
 
+from django.contrib.auth.hashers import make_password
+
+class StudentViewForTeacher(APIView):
+    permission_classes = [IsTeacher]
+
     def post(self, request: Request):
         if not request.user.subscribe:
-            return Response({"detail": "You need to have a subscription to create students."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": "You need to have a subscription to create students."},
+                            status=status.HTTP_403_FORBIDDEN)
 
         nums_of_students = CustomUser.objects.filter(role='Student', created_by=request.user).count()
         if nums_of_students >= request.user.subscribe.nums_of_students:
-            return Response({"detail": "You have reached the maximum number of students allowed by your subscription."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": "You have reached the maximum number of students allowed by your subscription."},
+                            status=status.HTTP_403_FORBIDDEN)
 
         data = request.data.copy()
         data['role'] = 'Student'
         data['created_by'] = request.user.id
+        data['is_active'] = True 
+
+        password = data.get('password')
+        if not password:
+            return Response({"detail": "Password is required for student creation."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        data['password'] = make_password(password)
 
         serializer = StudentSerializer(data=data)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            student = serializer.save()
+            student.set_password(password) 
+            student.save()
+            return Response(StudentSerializer(student).data, status=status.HTTP_201_CREATED)
+
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
     def patch(self, request: Request, student_id: int):
         student = get_object_or_404(CustomUser, pk=student_id, role='Student')
