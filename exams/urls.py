@@ -14,4 +14,7 @@ urlpatterns = [
     path('questions/<int:question_id>/choices/', ChoiceView.as_view(), name='choice-list'),
     path('choices/<int:pk>/', ChoiceView.as_view(), name='choice-detail'),
 
+    # attempts
+    path('attempts/', ExamAttemptView.as_view(), name='attempt-list'),
+    path('attempts/<int:pk>/', ExamAttemptView.as_view(), name='attempt-detail'),
 ]

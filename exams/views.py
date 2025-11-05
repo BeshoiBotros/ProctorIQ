@@ -1,16 +1,13 @@
-from django.shortcuts import render
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import Exam
 from .serializers import ExamSerializer
 from django.shortcuts import get_object_or_404
-from rest_framework.permissions import IsAuthenticated  # Ensure user is authenticated
-from ProctorIQ.utils import IsTeacher
+from rest_framework.permissions import IsAuthenticated 
 from django.utils import timezone
 from .models import *
 from .serializers import *
-from ProctorIQ.utils import IsTeacher, IsStudent
 
 # Create your views here.
 
@@ -293,6 +290,7 @@ class ChoiceView(APIView):
 
     def delete(self, request, pk):
 
+
         user = request.user
         choice = get_object_or_404(Choice, pk=pk)
 
@@ -301,3 +299,114 @@ class ChoiceView(APIView):
 
         choice.delete()
         return Response({"detail": "Choice deleted successfully."}, status=status.HTTP_204_NO_CONTENT)    
+    
+class ExamAttemptView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk=None):
+
+        user = request.user
+
+        if user.is_staff:
+            if pk:
+                attempt = get_object_or_404(ExamAttempt, pk=pk)
+                serializer = ExamAttemptSerializer(attempt)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            attempts = ExamAttempt.objects.all()
+            serializer = ExamAttemptSerializer(attempts, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        elif user.role == 'Teacher':
+            if pk:
+                attempt = get_object_or_404(ExamAttempt, pk=pk, exam__created_by=user)
+                serializer = ExamAttemptSerializer(attempt)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
+            attempts = ExamAttempt.objects.filter(exam__created_by=user)
+            serializer = ExamAttemptSerializer(attempts, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        elif user.role == 'Student':
+            if pk:
+                attempt = get_object_or_404(ExamAttempt, pk=pk, student=user)
+                serializer = ExamAttemptSerializer(attempt)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
+            attempts = ExamAttempt.objects.filter(student=user)
+            serializer = ExamAttemptSerializer(attempts, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        return Response({"detail": "Unauthorized."}, status=status.HTTP_403_FORBIDDEN)
+
+    def post(self, request):
+
+        user = request.user
+
+        if user.role != 'Teacher':
+            return Response({"detail": "Only teachers can assign exams."}, status=status.HTTP_403_FORBIDDEN)
+
+        exam_id = request.data.get('exam')
+        student_id = request.data.get('student')
+
+        if not exam_id or not student_id:
+            return Response({"detail": "Both 'exam' and 'student' fields are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        exam = get_object_or_404(Exam, id=exam_id, created_by=user)
+        
+        student = get_object_or_404(CustomUser, id=student_id, role='Student')
+
+        if ExamAttempt.objects.filter(exam=exam, student=student).exists():
+            return Response({"detail": "This student is already assigned to this exam."}, status=status.HTTP_400_BAD_REQUEST)
+
+        attempt = ExamAttempt.objects.create(exam=exam, student=student)
+        serializer = ExamAttemptSerializer(attempt)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def patch(self, request, pk):
+
+        user = request.user
+        attempt = get_object_or_404(ExamAttempt, pk=pk)
+
+
+        if user.role == 'Student' and attempt.student != user:
+            return Response({"detail": "You are not allowed to modify this attempt."}, status=status.HTTP_403_FORBIDDEN)
+
+        action = request.data.get('action')
+
+        if action == 'start':
+
+            if attempt.started_at:
+                return Response({"detail": "Exam already started."}, status=status.HTTP_400_BAD_REQUEST)
+            attempt.started_at = timezone.now()
+            attempt.save()
+            return Response({"detail": "Exam started successfully."}, status=status.HTTP_200_OK)
+
+        elif action == 'finish':
+            if not attempt.started_at:
+                return Response({"detail": "Exam has not started yet."}, status=status.HTTP_400_BAD_REQUEST)
+            if attempt.ended_at:
+                return Response({"detail": "Exam already finished."}, status=status.HTTP_400_BAD_REQUEST)
+
+            attempt.ended_at = timezone.now()
+
+            if 'score' in request.data:
+                attempt.score = request.data['score']
+
+            attempt.save()
+            return Response({"detail": "Exam finished successfully."}, status=status.HTTP_200_OK)
+
+        return Response({"detail": "Invalid action. Use 'start' or 'finish'."}, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk):
+
+        user = request.user
+        attempt = get_object_or_404(ExamAttempt, pk=pk)
+
+        if user.is_staff or (user.role == 'Teacher' and attempt.exam.created_by == user):
+            attempt.delete()
+            return Response({"detail": "Exam attempt deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+
+        return Response({"detail": "You are not allowed to delete this attempt."}, status=status.HTTP_403_FORBIDDEN)
+
+        
