@@ -16,19 +16,8 @@ class ExamView(APIView) :
 
     def get(self, request, pk = None): 
         user = request.user
-
-
-        if user.is_staff: 
-            if pk:
-                exam = get_object_or_404(Exam, pk=pk)
-                serializer = ExamSerializer(exam)
-                return Response(serializer.data, status=status.HTTP_200_OK)
-            exams = Exam.objects.all()
-            serializer = ExamSerializer(exams, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        
-
-        elif user.role == 'Teacher':
+  
+        if user.role == 'Teacher':
             if pk:
                 exam = get_object_or_404(Exam, pk=pk, created_by = user)
                 serializer = ExamSerializer(exam)
@@ -117,18 +106,7 @@ class QuestionView(APIView):
 
         user = request.user
 
-
-        if user.is_staff:
-            if pk:
-                question = get_object_or_404(Question, pk=pk)
-                serializer = QuestionSerializer(question)
-                return Response(serializer.data, status=status.HTTP_200_OK)
-            questions = Question.objects.all()
-            serializer = QuestionSerializer(questions, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-        elif user.role == 'Teacher':
+        if user.role == 'Teacher':
             if exam_id:
                 exam = get_object_or_404(Exam, id=exam_id, created_by=user)
                 questions = exam.questions.all()
@@ -211,17 +189,7 @@ class ChoiceView(APIView):
         user = request.user
 
 
-        if user.is_staff:
-            if pk:
-                choice = get_object_or_404(Choice, pk=pk)
-                serializer = ChoiceSerializer(choice)
-                return Response(serializer.data, status=status.HTTP_200_OK)
-            choices = Choice.objects.all()
-            serializer = ChoiceSerializer(choices, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-        elif user.role == 'Teacher':
+        if user.role == 'Teacher':
             if question_id:
                 question = get_object_or_404(Question, id=question_id, exam__created_by=user)
                 choices = question.choices.all()
@@ -308,16 +276,7 @@ class ExamAttemptView(APIView):
 
         user = request.user
 
-        if user.is_staff:
-            if pk:
-                attempt = get_object_or_404(ExamAttempt, pk=pk)
-                serializer = ExamAttemptSerializer(attempt)
-                return Response(serializer.data, status=status.HTTP_200_OK)
-            attempts = ExamAttempt.objects.all()
-            serializer = ExamAttemptSerializer(attempts, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-
-        elif user.role == 'Teacher':
+        if user.role == 'Teacher':
             if pk:
                 attempt = get_object_or_404(ExamAttempt, pk=pk, exam__created_by=user)
                 serializer = ExamAttemptSerializer(attempt)
@@ -390,12 +349,32 @@ class ExamAttemptView(APIView):
 
             attempt.ended_at = timezone.now()
 
-            if 'score' in request.data:
-                attempt.score = request.data['score']
+            answers = attempt.answers.all()  
+            total_questions = answers.count()
+
+            if total_questions == 0:
+                attempt.score = 0
+                attempt.save()
+                return Response({"detail": "Exam finished. No answers submitted.", "score": 0}, status=status.HTTP_200_OK)
+
+            correct_answers = answers.filter(is_correct=True).count()
+
+            total_marks = sum(a.question.marks for a in answers)
+            earned_marks = sum(a.question.marks for a in answers if a.is_correct)
+
+            attempt.score = round((earned_marks / total_marks) * 100, 2) if total_marks > 0 else 0
 
             attempt.save()
-            return Response({"detail": "Exam finished successfully."}, status=status.HTTP_200_OK)
 
+            return Response({
+                "detail": "Exam finished successfully.",
+                "total_questions": total_questions,
+                "correct_answers": correct_answers,
+                "total_marks": float(total_marks),
+                "earned_marks": float(earned_marks),
+                "score_percentage": float(attempt.score)
+            }, status=status.HTTP_200_OK)
+        
         return Response({"detail": "Invalid action. Use 'start' or 'finish'."}, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
