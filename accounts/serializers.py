@@ -25,7 +25,10 @@ class TeacherSerializer(serializers.ModelSerializer):
 class StudentSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
-        fields = ['id', 'username', 'first_name', 'last_name', 'email', 'image', 'phone_number', 'address', 'date_of_birth', 'role', 'created_by']
+        fields = ['id', 'username', 'first_name', 'last_name', 'email','password', 'image', 'phone_number', 'address', 'date_of_birth', 'role', 'created_by']
+        extra_kwargs = {
+            'password': {'write_only': True},
+        }
     
 class UpdateTeacherSerializer(serializers.ModelSerializer):
     class Meta:
