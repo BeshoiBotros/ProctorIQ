@@ -9,7 +9,9 @@ from django.utils import timezone
 from .models import *
 from .serializers import *
 from django.db.models import Avg, Max, Min, Count
-
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
+from proctoring.consumers import exam_group
 # Create your views here.
 
 class ExamView(APIView) : 
@@ -340,6 +342,11 @@ class ExamAttemptView(APIView):
                 return Response({"detail": "Exam already started."}, status=status.HTTP_400_BAD_REQUEST)
             attempt.started_at = timezone.now()
             attempt.save()
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                exam_group(attempt.exam_id),
+                {"type": "exam.message", "payload": {"kind": "attempt_started", "attempt_id": attempt.id, "student_id": attempt.student_id}}
+            )
             return Response({"detail": "Exam started successfully."}, status=status.HTTP_200_OK)
 
         elif action == 'finish':
@@ -366,6 +373,20 @@ class ExamAttemptView(APIView):
             attempt.score = round((earned_marks / total_marks) * 100, 2) if total_marks > 0 else 0
 
             attempt.save()
+
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                exam_group(attempt.exam_id),
+                {
+                    "type": "exam.message",
+                    "payload": {
+                        "kind": "attempt_finished",
+                        "attempt_id": attempt.id,
+                        "student_id": attempt.student_id,
+                        "score_percentage": float(attempt.score) if attempt.score is not None else None
+                    }
+                }
+            )
 
             return Response({
                 "detail": "Exam finished successfully.",
